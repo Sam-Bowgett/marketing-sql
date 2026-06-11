@@ -147,6 +147,7 @@ FROM conversion_stats;
 
 
 SELECT
+	cust.customer_id,
 	cust.first_name,
 	cust.last_name,
 	COUNT(conv.conversion_id) AS conversion_count
@@ -154,6 +155,7 @@ FROM customers AS cust
 INNER JOIN conversions AS conv
 	ON cust.customer_id = conv.customer_id
 GROUP BY 
+	cust.customer_id,
 	cust.first_name,
 	cust.last_name
 HAVING COUNT(conv.conversion_id) > 1
