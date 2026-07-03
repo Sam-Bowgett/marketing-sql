@@ -1,55 +1,51 @@
 --- table creation ---
 
 CREATE TABLE customers (
-	customer_id SERIAL PRIMARY KEY,
-	first_name VARCHAR (50),
-	last_name VARCHAR (50),
-	email VARCHAR (100),
-	age INT,
-	region VARCHAR (100),
-	income_bracket VARCHAR (50),
-	customer_since DATE
+    customer_id SERIAL PRIMARY KEY,
+    first_name VARCHAR(50) NOT NULL,
+    last_name VARCHAR(50) NOT NULL,
+    email VARCHAR(100) UNIQUE NOT NULL,
+    age INT CHECK (age > 0),
+    region VARCHAR(100),
+    income_bracket VARCHAR(50),
+    customer_since DATE DEFAULT CURRENT_DATE
 );
-
 
 CREATE TABLE products (
-	product_id SERIAL PRIMARY KEY,
-	product_name VARCHAR (50),
-	category VARCHAR (50),
-	typical_revenue DECIMAL (10,2)
+    product_id SERIAL PRIMARY KEY,
+    product_name VARCHAR(50) NOT NULL,
+    category VARCHAR(50),
+    typical_revenue DECIMAL(10,2) CHECK (typical_revenue >= 0)
 );
-
 
 CREATE TABLE campaigns (
-	campaign_id SERIAL PRIMARY KEY,
-	campaign_name VARCHAR (50),
-	product_id INT REFERENCES products(product_id),
-	channel VARCHAR (50),
-	start_date DATE,
-	end_date DATE,
-	cost DECIMAL (10,2)
+    campaign_id SERIAL PRIMARY KEY,
+    campaign_name VARCHAR(50) NOT NULL,
+    product_id INT REFERENCES products(product_id),
+    channel VARCHAR(50),
+    start_date DATE,
+    end_date DATE,
+    cost DECIMAL(10,2) CHECK (cost >= 0),
+    CHECK (end_date >= start_date)
 );
-
 
 CREATE TABLE campaign_contacts (
-	contact_id SERIAL PRIMARY KEY,
-	customer_id INT REFERENCES customers(customer_id),
-	campaign_id INT REFERENCES campaigns(campaign_id),
-	contact_date DATE,
-	opened BOOLEAN,
-	clicked BOOLEAN,
-	responded BOOLEAN
+    contact_id SERIAL PRIMARY KEY,
+    customer_id INT REFERENCES customers(customer_id),
+    campaign_id INT REFERENCES campaigns(campaign_id),
+    contact_date DATE,
+    opened BOOLEAN DEFAULT FALSE,
+    clicked BOOLEAN DEFAULT FALSE,
+    responded BOOLEAN DEFAULT FALSE
 );
 
-
-
 CREATE TABLE conversions (
-	conversion_id SERIAL PRIMARY KEY,
-	customer_id INT REFERENCES customers(customer_id),
-	campaign_id INT REFERENCES campaigns(campaign_id),
-	product_id INT REFERENCES products(product_id),
-	conversion_date DATE,
-	revenue DECIMAL (10,2)
+    conversion_id SERIAL PRIMARY KEY,
+    customer_id INT REFERENCES customers(customer_id),
+    campaign_id INT REFERENCES campaigns(campaign_id),
+    product_id INT REFERENCES products(product_id),
+    conversion_date DATE,
+    revenue DECIMAL(10,2) CHECK (revenue >= 0)
 );
 
 
@@ -126,28 +122,27 @@ ORDER BY conversion_count DESC;
 --- intermediate queries ---
 
 WITH conversion_stats AS (
-	SELECT
-		camp.channel,
-		COUNT(cc.contact_id) AS contact_count,
-		COUNT (conv.conversion_id) AS conversion_count
-	FROM campaigns AS camp
-	INNER JOIN campaign_contacts AS cc
-		ON camp.campaign_id = cc.campaign_id
-	INNER JOIN conversions AS conv
-		ON cc.customer_id = conv.customer_id
-		AND cc.campaign_id = conv.campaign_id
-	GROUP BY camp.channel
+    SELECT
+        camp.channel,
+        COUNT(DISTINCT cc.contact_id) AS contact_count,
+        COUNT(DISTINCT conv.conversion_id) AS conversion_count
+    FROM campaigns AS camp
+    INNER JOIN campaign_contacts AS cc
+        ON camp.campaign_id = cc.campaign_id
+    LEFT JOIN conversions AS conv
+        ON cc.customer_id = conv.customer_id
+        AND cc.campaign_id = conv.campaign_id
+    GROUP BY camp.channel
 )
 SELECT
-	channel,
-	ROUND(conversion_count * 100.0/contact_count, 2) AS conversion_rate
+    channel,
+    ROUND(conversion_count * 100.0 / contact_count, 2) AS conversion_rate
 FROM conversion_stats;
 
 
 
 
 SELECT
-	cust.customer_id,
 	cust.first_name,
 	cust.last_name,
 	COUNT(conv.conversion_id) AS conversion_count
@@ -155,7 +150,6 @@ FROM customers AS cust
 INNER JOIN conversions AS conv
 	ON cust.customer_id = conv.customer_id
 GROUP BY 
-	cust.customer_id,
 	cust.first_name,
 	cust.last_name
 HAVING COUNT(conv.conversion_id) > 1
@@ -215,23 +209,24 @@ FROM campaign_stats;
 
 
 WITH conversion_stats AS (
-	SELECT
-		camp.campaign_name,
-		COUNT(cc.contact_id) AS contact_count,
-		COUNT (conv.conversion_id) AS conversion_count
-	FROM campaigns AS camp
-	INNER JOIN campaign_contacts AS cc
-		ON camp.campaign_id = cc.campaign_id
-	INNER JOIN conversions AS conv
-		ON cc.customer_id = conv.customer_id
-		AND cc.campaign_id = conv.campaign_id
-	GROUP BY camp.campaign_name
+    SELECT
+        camp.campaign_id,
+        camp.campaign_name,
+        COUNT(DISTINCT cc.contact_id) AS contact_count,
+        COUNT(DISTINCT conv.conversion_id) AS conversion_count
+    FROM campaigns AS camp
+    INNER JOIN campaign_contacts AS cc
+        ON camp.campaign_id = cc.campaign_id
+    LEFT JOIN conversions AS conv
+        ON cc.customer_id = conv.customer_id
+        AND cc.campaign_id = conv.campaign_id
+    GROUP BY camp.campaign_id, camp.campaign_name
 )
 SELECT
-	campaign_name,
-	contact_count,
-	conversion_count,
-	ROUND(conversion_count * 100.0/contact_count, 2) AS conversion_rate
+    campaign_name,
+    contact_count,
+    conversion_count,
+    ROUND(conversion_count * 100.0 / contact_count, 2) AS conversion_rate
 FROM conversion_stats;
 
 
@@ -261,3 +256,4 @@ SELECT
 		ELSE 'Low'
 	END AS segment_rank
 FROM revenue_stats;
+
